@@ -101,17 +101,19 @@ export class FamilyTaskCard extends LitElement {
     if (this._pin.length === 4) this._submitPin();
   }
 
-  private _submitPin(): void {
+  private async _submitPin(): Promise<void> {
     if (!validatePin(this._pin, this._config.pin)) {
       this._pinError = true;
       this._pin = '';
       setTimeout(() => { this._pinError = false; }, 600);
       return;
     }
-    const next = this._dialog === 'pin-redeem' ? 'redeem' : 'none';
-    if (this._dialog === 'pin-reset') this._executeReset();
-    this._dialog = next;
     this._pin = '';
+    if (this._dialog === 'pin-reset') {
+      await this._executeReset();
+    } else {
+      this._dialog = 'redeem';
+    }
   }
 
   private async _executeRedeem(amount: number | 'all'): Promise<void> {
