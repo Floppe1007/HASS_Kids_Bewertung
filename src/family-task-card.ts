@@ -10,7 +10,7 @@ import {
   today,
 } from './utils';
 
-type DialogState = 'none' | 'pin-redeem' | 'pin-reset' | 'redeem';
+type DialogState = 'none' | 'pin-redeem' | 'pin-reset' | 'redeem' | 'add-task';
 
 @customElement('family-task-card')
 export class FamilyTaskCard extends LitElement {
@@ -19,6 +19,9 @@ export class FamilyTaskCard extends LitElement {
   @state() private _dialog: DialogState = 'none';
   @state() private _pin = '';
   @state() private _pinError = false;
+  @state() private _newTaskIcon = '⭐';
+  @state() private _newTaskName = '';
+  @state() private _newTaskMinutes = 10;
 
   static getConfigElement(): HTMLElement {
     return document.createElement('family-task-card-editor');
@@ -132,6 +135,36 @@ export class FamilyTaskCard extends LitElement {
     this._pin = '';
   }
 
+  private _openAddTask(): void {
+    this._newTaskIcon = '⭐';
+    this._newTaskName = '';
+    this._newTaskMinutes = 10;
+    this._dialog = 'add-task';
+  }
+
+  private _saveNewTask(): void {
+    if (!this._newTaskName.trim()) return;
+    const updatedConfig: CardConfig = {
+      ...this._config,
+      tasks: [
+        ...(this._config.tasks ?? []),
+        {
+          id: `task_${Date.now()}`,
+          name: this._newTaskName.trim(),
+          icon: this._newTaskIcon || '⭐',
+          minutes: Math.max(1, this._newTaskMinutes || 10),
+        },
+      ],
+    };
+    this._config = updatedConfig;
+    this.dispatchEvent(new CustomEvent('config-changed', {
+      detail: { config: updatedConfig },
+      bubbles: true,
+      composed: true,
+    }));
+    this._dialog = 'none';
+  }
+
   render(): TemplateResult {
     if (!this._config || !this.hass) return html``;
     const state = this._taskState;
@@ -159,6 +192,10 @@ export class FamilyTaskCard extends LitElement {
                 </div>
               `;
             })}
+            <div class="add-task-row" @click=${() => this._openAddTask()}>
+              <span class="add-task-plus">＋</span>
+              <span>Neue Aufgabe</span>
+            </div>
           </div>
           <div class="actions">
             <button class="btn-reset" @click=${() => this._openPin('reset')}>↺ Reset</button>
@@ -171,6 +208,37 @@ export class FamilyTaskCard extends LitElement {
   }
 
   private _renderOverlay(minutes: number): TemplateResult {
+    if (this._dialog === 'add-task') {
+      return html`
+        <div class="overlay" @click=${(e: Event) => { if (e.target === e.currentTarget) this._closeDialog(); }}>
+          <div class="dialog">
+            <div class="dialog-title">Neue Aufgabe</div>
+            <div class="task-form">
+              <div class="form-row">
+                <input class="form-icon" type="text"
+                  .value=${this._newTaskIcon}
+                  @input=${(e: Event) => { this._newTaskIcon = (e.target as HTMLInputElement).value; }}
+                />
+                <input class="form-name" type="text" placeholder="Aufgabe..."
+                  .value=${this._newTaskName}
+                  @input=${(e: Event) => { this._newTaskName = (e.target as HTMLInputElement).value; }}
+                />
+              </div>
+              <div class="form-row form-row-min">
+                <input class="form-min" type="number" min="1"
+                  .value=${String(this._newTaskMinutes)}
+                  @input=${(e: Event) => { this._newTaskMinutes = parseInt((e.target as HTMLInputElement).value, 10) || 10; }}
+                />
+                <span class="form-label">Minuten Medienzeit</span>
+              </div>
+            </div>
+            <button class="redeem-btn" @click=${this._saveNewTask.bind(this)}>Hinzufügen</button>
+            <button class="redeem-btn cancel" @click=${this._closeDialog.bind(this)}>Abbrechen</button>
+          </div>
+        </div>
+      `;
+    }
+
     if (this._dialog === 'pin-redeem' || this._dialog === 'pin-reset') {
       return html`
         <div class="overlay" @click=${(e: Event) => { if (e.target === e.currentTarget) this._closeDialog(); }}>
@@ -315,8 +383,53 @@ export class FamilyTaskCard extends LitElement {
         border-color: var(--divider-color, #ddd);
         color: var(--secondary-text-color, #999);
       }
+
+      .add-task-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 4px; cursor: pointer;
+        color: var(--primary-color, #457b9d);
+        border-top: 1px dashed var(--divider-color, #ddd);
+        margin-top: 4px; font-size: 13px; opacity: 0.65;
+        transition: opacity 0.15s;
+      }
+      .add-task-row:hover { opacity: 1; }
+      .add-task-plus { font-size: 18px; line-height: 1; }
+
+      .task-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+      .form-row { display: flex; gap: 8px; align-items: center; }
+      .form-row-min { justify-content: center; }
+      .form-icon {
+        width: 44px; text-align: center; font-size: 18px;
+        border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 6px;
+        background: var(--card-background-color, #fff);
+        color: var(--primary-text-color, #333); flex-shrink: 0;
+      }
+      .form-name {
+        flex: 1; border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 8px;
+        background: var(--card-background-color, #fff);
+        color: var(--primary-text-color, #333); font-size: 14px;
+      }
+      .form-min {
+        width: 64px; border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 8px;
+        background: var(--card-background-color, #fff);
+        color: var(--primary-text-color, #333); font-size: 14px; text-align: center;
+      }
+      .form-label { font-size: 12px; color: var(--secondary-text-color, #999); }
     `;
   }
 }
 
 import './editor';
+
+declare global {
+  interface Window {
+    customCards?: Array<{ type: string; name: string; description: string }>;
+  }
+}
+
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: 'family-task-card',
+  name: 'Family Task Card',
+  description: 'Kinder sammeln Medienzeit durch das Erledigen von Aufgaben',
+});

@@ -239,6 +239,9 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
         this._dialog = 'none';
         this._pin = '';
         this._pinError = false;
+        this._newTaskIcon = '⭐';
+        this._newTaskName = '';
+        this._newTaskMinutes = 10;
     }
     static getConfigElement() {
         return document.createElement('family-task-card-editor');
@@ -342,6 +345,36 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
         this._dialog = 'none';
         this._pin = '';
     }
+    _openAddTask() {
+        this._newTaskIcon = '⭐';
+        this._newTaskName = '';
+        this._newTaskMinutes = 10;
+        this._dialog = 'add-task';
+    }
+    _saveNewTask() {
+        var _a;
+        if (!this._newTaskName.trim())
+            return;
+        const updatedConfig = {
+            ...this._config,
+            tasks: [
+                ...((_a = this._config.tasks) !== null && _a !== void 0 ? _a : []),
+                {
+                    id: `task_${Date.now()}`,
+                    name: this._newTaskName.trim(),
+                    icon: this._newTaskIcon || '⭐',
+                    minutes: Math.max(1, this._newTaskMinutes || 10),
+                },
+            ],
+        };
+        this._config = updatedConfig;
+        this.dispatchEvent(new CustomEvent('config-changed', {
+            detail: { config: updatedConfig },
+            bubbles: true,
+            composed: true,
+        }));
+        this._dialog = 'none';
+    }
     render() {
         var _a;
         if (!this._config || !this.hass)
@@ -370,6 +403,10 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
                 </div>
               `;
         })}
+            <div class="add-task-row" @click=${() => this._openAddTask()}>
+              <span class="add-task-plus">＋</span>
+              <span>Neue Aufgabe</span>
+            </div>
           </div>
           <div class="actions">
             <button class="btn-reset" @click=${() => this._openPin('reset')}>↺ Reset</button>
@@ -382,6 +419,37 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
     }
     _renderOverlay(minutes) {
         var _a;
+        if (this._dialog === 'add-task') {
+            return b `
+        <div class="overlay" @click=${(e) => { if (e.target === e.currentTarget)
+                this._closeDialog(); }}>
+          <div class="dialog">
+            <div class="dialog-title">Neue Aufgabe</div>
+            <div class="task-form">
+              <div class="form-row">
+                <input class="form-icon" type="text"
+                  .value=${this._newTaskIcon}
+                  @input=${(e) => { this._newTaskIcon = e.target.value; }}
+                />
+                <input class="form-name" type="text" placeholder="Aufgabe..."
+                  .value=${this._newTaskName}
+                  @input=${(e) => { this._newTaskName = e.target.value; }}
+                />
+              </div>
+              <div class="form-row form-row-min">
+                <input class="form-min" type="number" min="1"
+                  .value=${String(this._newTaskMinutes)}
+                  @input=${(e) => { this._newTaskMinutes = parseInt(e.target.value, 10) || 10; }}
+                />
+                <span class="form-label">Minuten Medienzeit</span>
+              </div>
+            </div>
+            <button class="redeem-btn" @click=${this._saveNewTask.bind(this)}>Hinzufügen</button>
+            <button class="redeem-btn cancel" @click=${this._closeDialog.bind(this)}>Abbrechen</button>
+          </div>
+        </div>
+      `;
+        }
         if (this._dialog === 'pin-redeem' || this._dialog === 'pin-reset') {
             return b `
         <div class="overlay" @click=${(e) => { if (e.target === e.currentTarget)
@@ -526,6 +594,38 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
         border-color: var(--divider-color, #ddd);
         color: var(--secondary-text-color, #999);
       }
+
+      .add-task-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px 4px; cursor: pointer;
+        color: var(--primary-color, #457b9d);
+        border-top: 1px dashed var(--divider-color, #ddd);
+        margin-top: 4px; font-size: 13px; opacity: 0.65;
+        transition: opacity 0.15s;
+      }
+      .add-task-row:hover { opacity: 1; }
+      .add-task-plus { font-size: 18px; line-height: 1; }
+
+      .task-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+      .form-row { display: flex; gap: 8px; align-items: center; }
+      .form-row-min { justify-content: center; }
+      .form-icon {
+        width: 44px; text-align: center; font-size: 18px;
+        border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 6px;
+        background: var(--card-background-color, #fff);
+        color: var(--primary-text-color, #333); flex-shrink: 0;
+      }
+      .form-name {
+        flex: 1; border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 8px;
+        background: var(--card-background-color, #fff);
+        color: var(--primary-text-color, #333); font-size: 14px;
+      }
+      .form-min {
+        width: 64px; border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 8px;
+        background: var(--card-background-color, #fff);
+        color: var(--primary-text-color, #333); font-size: 14px; text-align: center;
+      }
+      .form-label { font-size: 12px; color: var(--secondary-text-color, #999); }
     `;
     }
 };
@@ -544,8 +644,23 @@ __decorate([
 __decorate([
     r()
 ], FamilyTaskCard.prototype, "_pinError", void 0);
+__decorate([
+    r()
+], FamilyTaskCard.prototype, "_newTaskIcon", void 0);
+__decorate([
+    r()
+], FamilyTaskCard.prototype, "_newTaskName", void 0);
+__decorate([
+    r()
+], FamilyTaskCard.prototype, "_newTaskMinutes", void 0);
 FamilyTaskCard = __decorate([
     t('family-task-card')
 ], FamilyTaskCard);
+window.customCards = window.customCards || [];
+window.customCards.push({
+    type: 'family-task-card',
+    name: 'Family Task Card',
+    description: 'Kinder sammeln Medienzeit durch das Erledigen von Aufgaben',
+});
 
 export { FamilyTaskCard };
