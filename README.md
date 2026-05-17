@@ -16,7 +16,15 @@ In HA → Einstellungen → Geräte & Dienste → Helfer:
 1. **Zahl** (`input_number`) — z.B. `max_media_time`, Min: 0, Max: 9999, Schrittweite: 1
 2. **Text** (`input_text`) — z.B. `max_task_state`, **Max. Länge: 255**
 
-## Karten-Konfiguration (YAML)
+## Karte hinzufügen
+
+Die Karte erscheint nach der Installation automatisch im HA-Karten-Picker unter dem Namen **Family Task Card** — kein YAML nötig.
+
+1. Dashboard bearbeiten → Karte hinzufügen → "Family Task Card" suchen
+2. Im Konfigurations-Dialog Entitäten, PIN und Einlöse-Beträge eintragen
+3. Aufgaben direkt im Editor anlegen (Icon aus MDI-Bibliothek, Name, Minuten)
+
+Alternativ per YAML:
 
 ```yaml
 type: custom:family-task-card
@@ -28,22 +36,27 @@ redeem_amounts: [30, 60]
 tasks:
   - id: teeth
     name: Zähne putzen
-    icon: "🦷"
+    icon: mdi:toothbrush-paste
     minutes: 10
   - id: room
     name: Zimmer aufräumen
-    icon: "🛏"
+    icon: mdi:broom
     minutes: 20
   - id: homework
     name: Hausaufgaben
-    icon: "📚"
+    icon: mdi:book-open-variant
     minutes: 15
 ```
 
 ## Verhalten
 
-- **Aufgabe antippen** — Häkchen setzen/entfernen, Medienzeit wird sofort addiert/subtrahiert
-- **Täglicher Reset** — Aufgaben-Häkchen werden automatisch jeden Tag geleert; Medienzeit akkumuliert
-- **Einlösen (PIN)** — Eltern wählen vordefinierten Betrag oder lösen alles ein
-- **Reset (PIN)** — Aufgaben manuell zurücksetzen
+| Aktion | Beschreibung |
+|---|---|
+| Aufgabe antippen | Häkchen setzen/entfernen, Medienzeit sofort addiert/subtrahiert |
+| ＋ Neue Aufgabe | PIN-geschützt — Eltern können Aufgaben direkt in der Karte hinzufügen |
+| Täglicher Reset | Häkchen werden automatisch jeden Tag geleert; Medienzeit akkumuliert weiter |
+| Einlösen (PIN) | Eltern wählen vordefinierten Betrag oder lösen alles ein |
+| Reset (PIN) | Setzt Häkchen **und Medienzeit-Zähler** auf 0 |
+
 - **Separate Instanzen** — pro Kind eine eigene Karte mit eigenen Entitäten
+- **Icons** — aus der MDI-Standardbibliothek (`mdi:...`), wählbar über den integrierten Icon-Picker
