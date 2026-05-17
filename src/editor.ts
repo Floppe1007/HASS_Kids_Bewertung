@@ -91,12 +91,13 @@ export class FamilyTaskCardEditor extends LitElement {
         <h3 class="tasks-heading">Aufgaben</h3>
         ${(this._config.tasks ?? []).map((task, i) => html`
           <div class="task-row">
-            <ha-textfield
+            <ha-icon-picker
               label="Icon"
+              .hass=${this.hass}
               .value=${task.icon}
               class="icon-field"
-              @change=${(e: Event) => this._setTask(i, 'icon', (e.target as HTMLInputElement).value)}
-            ></ha-textfield>
+              @value-changed=${(e: CustomEvent) => this._setTask(i, 'icon', e.detail.value)}
+            ></ha-icon-picker>
             <ha-textfield
               label="Name"
               .value=${task.name}
@@ -128,7 +129,7 @@ export class FamilyTaskCardEditor extends LitElement {
       ha-textfield, ha-entity-picker { display: block; width: 100%; }
       .tasks-heading { margin: 8px 0 4px; font-size: 14px; }
       .task-row { display: flex; align-items: center; gap: 8px; }
-      .icon-field { width: 64px; flex-shrink: 0; }
+      .icon-field { width: 140px; flex-shrink: 0; }
       .name-field { flex: 1; }
       .min-field { width: 72px; flex-shrink: 0; }
     `;

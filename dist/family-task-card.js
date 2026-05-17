@@ -182,12 +182,13 @@ let FamilyTaskCardEditor = class FamilyTaskCardEditor extends i {
         <h3 class="tasks-heading">Aufgaben</h3>
         ${((_f = this._config.tasks) !== null && _f !== void 0 ? _f : []).map((task, i) => b `
           <div class="task-row">
-            <ha-textfield
+            <ha-icon-picker
               label="Icon"
+              .hass=${this.hass}
               .value=${task.icon}
               class="icon-field"
-              @change=${(e) => this._setTask(i, 'icon', e.target.value)}
-            ></ha-textfield>
+              @value-changed=${(e) => this._setTask(i, 'icon', e.detail.value)}
+            ></ha-icon-picker>
             <ha-textfield
               label="Name"
               .value=${task.name}
@@ -217,7 +218,7 @@ let FamilyTaskCardEditor = class FamilyTaskCardEditor extends i {
       ha-textfield, ha-entity-picker { display: block; width: 100%; }
       .tasks-heading { margin: 8px 0 4px; font-size: 14px; }
       .task-row { display: flex; align-items: center; gap: 8px; }
-      .icon-field { width: 64px; flex-shrink: 0; }
+      .icon-field { width: 140px; flex-shrink: 0; }
       .name-field { flex: 1; }
       .min-field { width: 72px; flex-shrink: 0; }
     `;
@@ -239,7 +240,7 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
         this._dialog = 'none';
         this._pin = '';
         this._pinError = false;
-        this._newTaskIcon = '⭐';
+        this._newTaskIcon = 'mdi:star';
         this._newTaskName = '';
         this._newTaskMinutes = 10;
     }
@@ -247,12 +248,19 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
         return document.createElement('family-task-card-editor');
     }
     static getStubConfig() {
-        return { name: 'Kind', redeem_amounts: [30, 60], tasks: [] };
+        return {
+            name: 'Kind',
+            entity_media_time: '',
+            entity_task_state: '',
+            pin: '1234',
+            redeem_amounts: [30, 60],
+            tasks: [
+                { id: 'task_1', name: 'Zähne putzen', icon: 'mdi:toothbrush-paste', minutes: 10 },
+                { id: 'task_2', name: 'Zimmer aufräumen', icon: 'mdi:broom', minutes: 20 },
+            ],
+        };
     }
     setConfig(config) {
-        if (!config.entity_media_time || !config.entity_task_state) {
-            throw new Error('entity_media_time and entity_task_state are required');
-        }
         this._config = config;
     }
     getCardSize() {
@@ -265,8 +273,10 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
         }
     }
     async _triggerDailyResetIfNeeded() {
-        var _a, _b;
-        const raw = (_b = (_a = this.hass.states[this._config.entity_task_state]) === null || _a === void 0 ? void 0 : _a.state) !== null && _b !== void 0 ? _b : '';
+        var _a, _b, _c;
+        if (!((_a = this._config) === null || _a === void 0 ? void 0 : _a.entity_task_state))
+            return;
+        const raw = (_c = (_b = this.hass.states[this._config.entity_task_state]) === null || _b === void 0 ? void 0 : _b.state) !== null && _c !== void 0 ? _c : '';
         const state = parseTaskState(raw);
         if (state.date !== today()) {
             await this._writeTaskState({ date: today(), done: [] });
@@ -328,6 +338,12 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
         if (this._dialog === 'pin-reset') {
             await this._executeReset();
         }
+        else if (this._dialog === 'pin-add-task') {
+            this._newTaskIcon = 'mdi:star';
+            this._newTaskName = '';
+            this._newTaskMinutes = 10;
+            this._dialog = 'add-task';
+        }
         else {
             this._dialog = 'redeem';
         }
@@ -338,7 +354,10 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
         this._dialog = 'none';
     }
     async _executeReset() {
-        await this._writeTaskState({ date: today(), done: [] });
+        await Promise.all([
+            this._writeTaskState({ date: today(), done: [] }),
+            this._writeMediaMinutes(0),
+        ]);
         this._dialog = 'none';
     }
     _closeDialog() {
@@ -346,10 +365,9 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
         this._pin = '';
     }
     _openAddTask() {
-        this._newTaskIcon = '⭐';
-        this._newTaskName = '';
-        this._newTaskMinutes = 10;
-        this._dialog = 'add-task';
+        this._dialog = 'pin-add-task';
+        this._pin = '';
+        this._pinError = false;
     }
     _saveNewTask() {
         var _a;
@@ -362,7 +380,7 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
                 {
                     id: `task_${Date.now()}`,
                     name: this._newTaskName.trim(),
-                    icon: this._newTaskIcon || '⭐',
+                    icon: this._newTaskIcon || 'mdi:star',
                     minutes: Math.max(1, this._newTaskMinutes || 10),
                 },
             ],
@@ -377,7 +395,19 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
     }
     render() {
         var _a;
-        if (!this._config || !this.hass)
+        if (!this._config)
+            return b ``;
+        if (!this._config.entity_media_time || !this._config.entity_task_state) {
+            return b `
+        <ha-card>
+          <div class="setup-hint">
+            <ha-icon icon="mdi:cog"></ha-icon>
+            <span>Entitäten konfigurieren ✏️</span>
+          </div>
+        </ha-card>
+      `;
+        }
+        if (!this.hass)
             return b ``;
         const state = this._taskState;
         const minutes = this._mediaMinutes;
@@ -397,7 +427,7 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
                   class="task ${done ? 'done' : ''}"
                   @click=${() => this._toggleTask(task.id, task.minutes)}
                 >
-                  <span class="task-icon">${task.icon}</span>
+                  <ha-icon class="task-icon" .icon=${task.icon}></ha-icon>
                   <span class="task-name">${task.name}</span>
                   <span class="task-badge">${done ? '✓ ' : ''}${task.minutes} Min</span>
                 </div>
@@ -423,19 +453,19 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
             return b `
         <div class="overlay" @click=${(e) => { if (e.target === e.currentTarget)
                 this._closeDialog(); }}>
-          <div class="dialog">
+          <div class="dialog dialog-wide">
             <div class="dialog-title">Neue Aufgabe</div>
             <div class="task-form">
-              <div class="form-row">
-                <input class="form-icon" type="text"
-                  .value=${this._newTaskIcon}
-                  @input=${(e) => { this._newTaskIcon = e.target.value; }}
-                />
-                <input class="form-name" type="text" placeholder="Aufgabe..."
-                  .value=${this._newTaskName}
-                  @input=${(e) => { this._newTaskName = e.target.value; }}
-                />
-              </div>
+              <ha-icon-picker
+                .hass=${this.hass}
+                label="Icon"
+                .value=${this._newTaskIcon}
+                @value-changed=${(e) => { this._newTaskIcon = e.detail.value; }}
+              ></ha-icon-picker>
+              <input class="form-name" type="text" placeholder="Aufgabe..."
+                .value=${this._newTaskName}
+                @input=${(e) => { this._newTaskName = e.target.value; }}
+              />
               <div class="form-row form-row-min">
                 <input class="form-min" type="number" min="1"
                   .value=${String(this._newTaskMinutes)}
@@ -450,7 +480,7 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
         </div>
       `;
         }
-        if (this._dialog === 'pin-redeem' || this._dialog === 'pin-reset') {
+        if (this._dialog === 'pin-redeem' || this._dialog === 'pin-reset' || this._dialog === 'pin-add-task') {
             return b `
         <div class="overlay" @click=${(e) => { if (e.target === e.currentTarget)
                 this._closeDialog(); }}>
@@ -496,6 +526,11 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
         return i$3 `
       .container { position: relative; overflow: hidden; }
 
+      .setup-hint {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        padding: 24px; color: var(--secondary-text-color, #999); font-size: 14px;
+      }
+
       .hero {
         background: linear-gradient(135deg, #2a9d8f, #457b9d);
         padding: 20px; text-align: center; color: white;
@@ -514,7 +549,7 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
       .task:last-child { border-bottom: none; }
       .task.done { opacity: 0.5; }
       .task.done .task-name { text-decoration: line-through; }
-      .task-icon { font-size: 20px; }
+      .task-icon { --mdc-icon-size: 22px; flex-shrink: 0; }
       .task-name { flex: 1; font-size: 14px; }
       .task-badge {
         font-size: 12px; padding: 2px 8px; border-radius: 12px;
@@ -550,6 +585,7 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
         background: var(--card-background-color, #fff);
         border-radius: 12px; padding: 20px; width: 220px; text-align: center;
       }
+      .dialog-wide { width: 280px; }
       .dialog.shake { animation: shake 0.4s ease-in-out; }
       @keyframes shake {
         0%, 100% { transform: translateX(0); }
@@ -606,19 +642,14 @@ let FamilyTaskCard = class FamilyTaskCard extends i {
       .add-task-row:hover { opacity: 1; }
       .add-task-plus { font-size: 18px; line-height: 1; }
 
-      .task-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+      .task-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; text-align: left; }
+      .task-form ha-icon-picker { display: block; }
       .form-row { display: flex; gap: 8px; align-items: center; }
       .form-row-min { justify-content: center; }
-      .form-icon {
-        width: 44px; text-align: center; font-size: 18px;
-        border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 6px;
-        background: var(--card-background-color, #fff);
-        color: var(--primary-text-color, #333); flex-shrink: 0;
-      }
       .form-name {
-        flex: 1; border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 8px;
+        width: 100%; border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 8px;
         background: var(--card-background-color, #fff);
-        color: var(--primary-text-color, #333); font-size: 14px;
+        color: var(--primary-text-color, #333); font-size: 14px; box-sizing: border-box;
       }
       .form-min {
         width: 64px; border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 8px;

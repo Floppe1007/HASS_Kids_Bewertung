@@ -10,7 +10,7 @@ import {
   today,
 } from './utils';
 
-type DialogState = 'none' | 'pin-redeem' | 'pin-reset' | 'redeem' | 'add-task';
+type DialogState = 'none' | 'pin-redeem' | 'pin-reset' | 'pin-add-task' | 'redeem' | 'add-task';
 
 @customElement('family-task-card')
 export class FamilyTaskCard extends LitElement {
@@ -19,7 +19,7 @@ export class FamilyTaskCard extends LitElement {
   @state() private _dialog: DialogState = 'none';
   @state() private _pin = '';
   @state() private _pinError = false;
-  @state() private _newTaskIcon = '⭐';
+  @state() private _newTaskIcon = 'mdi:star';
   @state() private _newTaskName = '';
   @state() private _newTaskMinutes = 10;
 
@@ -28,13 +28,20 @@ export class FamilyTaskCard extends LitElement {
   }
 
   static getStubConfig(): Partial<CardConfig> {
-    return { name: 'Kind', redeem_amounts: [30, 60], tasks: [] };
+    return {
+      name: 'Kind',
+      entity_media_time: '',
+      entity_task_state: '',
+      pin: '1234',
+      redeem_amounts: [30, 60],
+      tasks: [
+        { id: 'task_1', name: 'Zähne putzen', icon: 'mdi:toothbrush-paste', minutes: 10 },
+        { id: 'task_2', name: 'Zimmer aufräumen', icon: 'mdi:broom', minutes: 20 },
+      ],
+    };
   }
 
   setConfig(config: CardConfig): void {
-    if (!config.entity_media_time || !config.entity_task_state) {
-      throw new Error('entity_media_time and entity_task_state are required');
-    }
     this._config = config;
   }
 
@@ -49,6 +56,7 @@ export class FamilyTaskCard extends LitElement {
   }
 
   private async _triggerDailyResetIfNeeded(): Promise<void> {
+    if (!this._config?.entity_task_state) return;
     const raw = this.hass.states[this._config.entity_task_state]?.state ?? '';
     const state = parseTaskState(raw);
     if (state.date !== today()) {
@@ -114,6 +122,11 @@ export class FamilyTaskCard extends LitElement {
     this._pin = '';
     if (this._dialog === 'pin-reset') {
       await this._executeReset();
+    } else if (this._dialog === 'pin-add-task') {
+      this._newTaskIcon = 'mdi:star';
+      this._newTaskName = '';
+      this._newTaskMinutes = 10;
+      this._dialog = 'add-task';
     } else {
       this._dialog = 'redeem';
     }
@@ -126,7 +139,10 @@ export class FamilyTaskCard extends LitElement {
   }
 
   private async _executeReset(): Promise<void> {
-    await this._writeTaskState({ date: today(), done: [] });
+    await Promise.all([
+      this._writeTaskState({ date: today(), done: [] }),
+      this._writeMediaMinutes(0),
+    ]);
     this._dialog = 'none';
   }
 
@@ -136,10 +152,9 @@ export class FamilyTaskCard extends LitElement {
   }
 
   private _openAddTask(): void {
-    this._newTaskIcon = '⭐';
-    this._newTaskName = '';
-    this._newTaskMinutes = 10;
-    this._dialog = 'add-task';
+    this._dialog = 'pin-add-task';
+    this._pin = '';
+    this._pinError = false;
   }
 
   private _saveNewTask(): void {
@@ -151,7 +166,7 @@ export class FamilyTaskCard extends LitElement {
         {
           id: `task_${Date.now()}`,
           name: this._newTaskName.trim(),
-          icon: this._newTaskIcon || '⭐',
+          icon: this._newTaskIcon || 'mdi:star',
           minutes: Math.max(1, this._newTaskMinutes || 10),
         },
       ],
@@ -166,7 +181,18 @@ export class FamilyTaskCard extends LitElement {
   }
 
   render(): TemplateResult {
-    if (!this._config || !this.hass) return html``;
+    if (!this._config) return html``;
+    if (!this._config.entity_media_time || !this._config.entity_task_state) {
+      return html`
+        <ha-card>
+          <div class="setup-hint">
+            <ha-icon icon="mdi:cog"></ha-icon>
+            <span>Entitäten konfigurieren ✏️</span>
+          </div>
+        </ha-card>
+      `;
+    }
+    if (!this.hass) return html``;
     const state = this._taskState;
     const minutes = this._mediaMinutes;
 
@@ -186,7 +212,7 @@ export class FamilyTaskCard extends LitElement {
                   class="task ${done ? 'done' : ''}"
                   @click=${() => this._toggleTask(task.id, task.minutes)}
                 >
-                  <span class="task-icon">${task.icon}</span>
+                  <ha-icon class="task-icon" .icon=${task.icon}></ha-icon>
                   <span class="task-name">${task.name}</span>
                   <span class="task-badge">${done ? '✓ ' : ''}${task.minutes} Min</span>
                 </div>
@@ -211,19 +237,19 @@ export class FamilyTaskCard extends LitElement {
     if (this._dialog === 'add-task') {
       return html`
         <div class="overlay" @click=${(e: Event) => { if (e.target === e.currentTarget) this._closeDialog(); }}>
-          <div class="dialog">
+          <div class="dialog dialog-wide">
             <div class="dialog-title">Neue Aufgabe</div>
             <div class="task-form">
-              <div class="form-row">
-                <input class="form-icon" type="text"
-                  .value=${this._newTaskIcon}
-                  @input=${(e: Event) => { this._newTaskIcon = (e.target as HTMLInputElement).value; }}
-                />
-                <input class="form-name" type="text" placeholder="Aufgabe..."
-                  .value=${this._newTaskName}
-                  @input=${(e: Event) => { this._newTaskName = (e.target as HTMLInputElement).value; }}
-                />
-              </div>
+              <ha-icon-picker
+                .hass=${this.hass}
+                label="Icon"
+                .value=${this._newTaskIcon}
+                @value-changed=${(e: CustomEvent) => { this._newTaskIcon = e.detail.value; }}
+              ></ha-icon-picker>
+              <input class="form-name" type="text" placeholder="Aufgabe..."
+                .value=${this._newTaskName}
+                @input=${(e: Event) => { this._newTaskName = (e.target as HTMLInputElement).value; }}
+              />
               <div class="form-row form-row-min">
                 <input class="form-min" type="number" min="1"
                   .value=${String(this._newTaskMinutes)}
@@ -239,7 +265,7 @@ export class FamilyTaskCard extends LitElement {
       `;
     }
 
-    if (this._dialog === 'pin-redeem' || this._dialog === 'pin-reset') {
+    if (this._dialog === 'pin-redeem' || this._dialog === 'pin-reset' || this._dialog === 'pin-add-task') {
       return html`
         <div class="overlay" @click=${(e: Event) => { if (e.target === e.currentTarget) this._closeDialog(); }}>
           <div class="dialog ${this._pinError ? 'shake' : ''}">
@@ -285,6 +311,11 @@ export class FamilyTaskCard extends LitElement {
     return css`
       .container { position: relative; overflow: hidden; }
 
+      .setup-hint {
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        padding: 24px; color: var(--secondary-text-color, #999); font-size: 14px;
+      }
+
       .hero {
         background: linear-gradient(135deg, #2a9d8f, #457b9d);
         padding: 20px; text-align: center; color: white;
@@ -303,7 +334,7 @@ export class FamilyTaskCard extends LitElement {
       .task:last-child { border-bottom: none; }
       .task.done { opacity: 0.5; }
       .task.done .task-name { text-decoration: line-through; }
-      .task-icon { font-size: 20px; }
+      .task-icon { --mdc-icon-size: 22px; flex-shrink: 0; }
       .task-name { flex: 1; font-size: 14px; }
       .task-badge {
         font-size: 12px; padding: 2px 8px; border-radius: 12px;
@@ -339,6 +370,7 @@ export class FamilyTaskCard extends LitElement {
         background: var(--card-background-color, #fff);
         border-radius: 12px; padding: 20px; width: 220px; text-align: center;
       }
+      .dialog-wide { width: 280px; }
       .dialog.shake { animation: shake 0.4s ease-in-out; }
       @keyframes shake {
         0%, 100% { transform: translateX(0); }
@@ -395,19 +427,14 @@ export class FamilyTaskCard extends LitElement {
       .add-task-row:hover { opacity: 1; }
       .add-task-plus { font-size: 18px; line-height: 1; }
 
-      .task-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+      .task-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; text-align: left; }
+      .task-form ha-icon-picker { display: block; }
       .form-row { display: flex; gap: 8px; align-items: center; }
       .form-row-min { justify-content: center; }
-      .form-icon {
-        width: 44px; text-align: center; font-size: 18px;
-        border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 6px;
-        background: var(--card-background-color, #fff);
-        color: var(--primary-text-color, #333); flex-shrink: 0;
-      }
       .form-name {
-        flex: 1; border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 8px;
+        width: 100%; border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 8px;
         background: var(--card-background-color, #fff);
-        color: var(--primary-text-color, #333); font-size: 14px;
+        color: var(--primary-text-color, #333); font-size: 14px; box-sizing: border-box;
       }
       .form-min {
         width: 64px; border: 1px solid var(--divider-color, #ddd); border-radius: 8px; padding: 8px;
