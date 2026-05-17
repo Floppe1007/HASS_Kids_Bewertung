@@ -1,0 +1,21 @@
+{
+  "name": "family-task-card",
+  "version": "0.1.0",
+  "description": "Home Assistant Lovelace card for family task management with media time rewards",
+  "keywords": ["home-assistant", "lovelace", "hacs"],
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c --watch",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "@rollup/plugin-typescript": "^11.0.0",
+    "custom-card-helpers": "^1.9.0",
+    "lit": "^3.0.0",
+    "rollup": "^4.0.0",
+    "tslib": "^2.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}
