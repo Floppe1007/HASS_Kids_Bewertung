@@ -318,3 +318,5 @@ export class FamilyTaskCard extends LitElement {
     `;
   }
 }
+
+import './editor';
